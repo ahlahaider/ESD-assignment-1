@@ -21,7 +21,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
@@ -32,6 +31,8 @@ services:
       - prometheus
     restart: always
 
+  # measures cpu, memory, disk, network of the machine docker runs on
+  # (on a mac that is the docker desktop linux vm)
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: node-exporter
@@ -45,17 +46,29 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    restart: always
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
     restart: always
 
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.11.0
     container_name: filebeat
     user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
     volumes:
       - ./telemetry/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -64,6 +77,6 @@ services:
       - elasticsearch
     restart: always
 
-
+# logs are kept in this named volume, so they survive restarts (deleted only by "down -v")
 volumes:
   elasticsearch-data:
